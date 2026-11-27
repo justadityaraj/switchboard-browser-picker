@@ -11,7 +11,7 @@ Use it to:
 - open some sites in a private or incognito window by default
 - strip tracking junk like `utm_source` and `fbclid`, and skip Outlook SafeLinks and other redirect wrappers
 
-**[Download Switchboard](../../releases/latest)** · [Website](https://dev.adityarajsingh.com/switchboard/) · [Compare Mac browser pickers](https://dev.adityarajsingh.com/switchboard/comparison/)
+**[Download Switchboard](../../releases/latest)** · [Website](https://adityarajsingh.com/switchboard/) · [Compare Mac browser pickers](https://adityarajsingh.com/switchboard/comparison/)
 
 https://github.com/user-attachments/assets/ff1d79e7-b350-4fae-b66b-3ff6fc28645f
 
