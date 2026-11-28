@@ -10,11 +10,15 @@ final class PickerPanel: NSPanel {
 final class PickerController: NSObject, NSWindowDelegate {
     private var panel: PickerPanel?
     private var keyMonitor: Any?
+    private var clickMonitor: Any?
+    private var returnFocusTo: NSRunningApplication?
     private var url: URL?
     private var options: [BrowserOption] = []
 
-    func show(url: URL, options: [BrowserOption], notice: String?) {
+    func show(url: URL, options: [BrowserOption], notice: String?, returnFocusTo: NSRunningApplication?) {
+        let returnFocusTo = returnFocusTo ?? (panel != nil ? self.returnFocusTo : nil)
         close()
+        self.returnFocusTo = returnFocusTo
         self.url = url
         self.options = options
 
@@ -35,7 +39,7 @@ final class PickerController: NSObject, NSWindowDelegate {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
-        panel.level = .popUpMenu
+        panel.level = .modalPanel
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.delegate = self
         panel.setFrameOrigin(origin(for: size))
@@ -44,11 +48,16 @@ final class PickerController: NSObject, NSWindowDelegate {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             self?.handle(event) == true ? nil : event
         }
-        NSApp.activate(ignoringOtherApps: true)
+        clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] _ in
+            self?.close()
+        }
         panel.makeKeyAndOrderFront(nil)
     }
 
     func windowDidResignKey(_ notification: Notification) {
+        if NSApp.currentEvent?.window.map({ $0 !== panel }) == true {
+            returnFocusTo = nil
+        }
         close()
     }
 
@@ -65,7 +74,7 @@ final class PickerController: NSObject, NSWindowDelegate {
         let key = event.charactersIgnoringModifiers ?? ""
         switch event.keyCode {
         case 53:
-            close()
+            closeAndReturnFocus()
             return true
         case 36, 76:
             options.first.map(choose)
@@ -106,15 +115,29 @@ final class PickerController: NSObject, NSWindowDelegate {
         guard let url else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(url.absoluteString, forType: .string)
+        closeAndReturnFocus()
+    }
+
+    private func closeAndReturnFocus() {
+        let source = returnFocusTo
         close()
+        if let source {
+            NSApp.yieldActivation(to: source)
+            source.activate()
+        }
     }
 
     private func close() {
         if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
         keyMonitor = nil
+        if let clickMonitor { NSEvent.removeMonitor(clickMonitor) }
+        clickMonitor = nil
         panel?.delegate = nil
+        SettingsWindow.refusesKey = returnFocusTo != nil
         panel?.orderOut(nil)
+        SettingsWindow.refusesKey = false
         panel = nil
+        returnFocusTo = nil
     }
 }
 
