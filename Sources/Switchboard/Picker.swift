@@ -17,6 +17,7 @@ final class PickerController: NSObject, NSWindowDelegate {
 
     func show(url: URL, options: [BrowserOption], notice: String?, returnFocusTo: NSRunningApplication?) {
         let returnFocusTo = returnFocusTo ?? (panel != nil ? self.returnFocusTo : nil)
+        panel?.animationBehavior = .none
         close()
         self.returnFocusTo = returnFocusTo
         self.url = url
@@ -39,6 +40,7 @@ final class PickerController: NSObject, NSWindowDelegate {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
+        panel.animationBehavior = .utilityWindow
         panel.level = .modalPanel
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.delegate = self
@@ -65,9 +67,7 @@ final class PickerController: NSObject, NSWindowDelegate {
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
         let bounds = screen?.visibleFrame ?? NSRect(origin: .zero, size: size)
-        let x = min(max(mouse.x - 20, bounds.minX), bounds.maxX - size.width)
-        let y = min(max(mouse.y - size.height + 20, bounds.minY), bounds.maxY - size.height)
-        return NSPoint(x: x, y: y)
+        return PickerPlacement.origin(cursor: mouse, size: size, in: bounds)
     }
 
     private func handle(_ event: NSEvent) -> Bool {
@@ -137,6 +137,7 @@ final class PickerController: NSObject, NSWindowDelegate {
         panel?.orderOut(nil)
         SettingsWindow.refusesKey = false
         panel = nil
+        url = nil
         returnFocusTo = nil
     }
 }
@@ -167,8 +168,10 @@ struct PickerView: View {
                     .padding(.horizontal, 6)
             }
             Divider()
-            ForEach(Array(options.enumerated()), id: \.element.id) { index, option in
-                PickerRow(option: option, shortcut: index < 9 ? index + 1 : nil) { choose(option) }
+            VStack(spacing: 0) {
+                ForEach(Array(options.enumerated()), id: \.element.id) { index, option in
+                    PickerRow(option: option, shortcut: index < 9 ? index + 1 : nil) { choose(option) }
+                }
             }
             Divider()
             VStack(alignment: .leading, spacing: 2) {
@@ -196,7 +199,7 @@ struct PickerRow: View {
             HStack(spacing: 10) {
                 Image(nsImage: option.icon)
                     .resizable()
-                    .frame(width: 24, height: 24)
+                    .frame(width: 20, height: 20)
                 Text(option.title)
                     .lineLimit(1)
                 Spacer()
@@ -207,7 +210,7 @@ struct PickerRow: View {
                 }
             }
             .padding(.horizontal, 6)
-            .padding(.vertical, 5)
+            .padding(.vertical, 3)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .fill(hovering ? Color.accentColor.opacity(0.25) : .clear)

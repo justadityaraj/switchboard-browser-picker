@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 import SwitchboardCore
 
 var failures = 0
@@ -69,6 +70,18 @@ check(cleaned("https://www.google.com/search?q=switchboard") == "https://www.goo
 check(cleaned("https://www.google.com/url?q=javascript:alert(1)") == "https://www.google.com/url?q=javascript:alert(1)", "non-http redirect targets are not followed")
 check(cleaned("https://example.com/page#utm_source=x") == "https://example.com/page#utm_source=x", "fragments untouched")
 check(try! JSONDecoder().decode(Config.self, from: Data("{}".utf8)).cleanLinks, "link cleanup defaults to on")
+
+let screen = CGRect(x: 0, y: 0, width: 1000, height: 800)
+let picker = CGSize(width: 320, height: 200)
+func place(_ x: CGFloat, _ y: CGFloat, _ size: CGSize = picker, in bounds: CGRect = screen) -> CGPoint {
+    PickerPlacement.origin(cursor: CGPoint(x: x, y: y), size: size, in: bounds)
+}
+check(place(100, 500) == CGPoint(x: 96, y: 304), "picker opens right of and below the cursor, cursor just inside")
+check(place(900, 500) == CGPoint(x: 584, y: 304), "picker flips left near the right edge")
+check(place(100, 50) == CGPoint(x: 96, y: 46), "picker flips up near the bottom edge")
+check(place(900, 50) == CGPoint(x: 584, y: 46), "picker flips left and up in the corner")
+check(place(100, 790, CGSize(width: 320, height: 900)) == CGPoint(x: 96, y: -100), "picker taller than the screen keeps its top on screen")
+check(place(-100, 300, in: CGRect(x: -1440, y: 100, width: 1440, height: 900)) == CGPoint(x: -416, y: 104), "placement respects a screen left of the main one")
 
 if failures > 0 {
     print("\(failures) check(s) failed")
