@@ -144,7 +144,7 @@ enum Launcher {
 final class Router {
     private let picker = PickerController()
 
-    func route(_ incoming: URL, sourceApp: String?) {
+    func route(_ incoming: URL, sourceApp: String?, returnFocusTo: NSRunningApplication?) {
         let (config, error) = ConfigStore.load()
         let url = config.cleanLinks ? LinkCleaner.clean(incoming) : incoming
         let forcePicker = NSEvent.modifierFlags.contains(.shift)
@@ -153,6 +153,6 @@ final class Router {
            Launcher.open(url, in: target) {
             return
         }
-        picker.show(url: url, options: Browsers.options(hiding: config.hiddenBrowsers), notice: error)
+        picker.show(url: url, options: Browsers.options(hiding: config.hiddenBrowsers), notice: error, returnFocusTo: returnFocusTo)
     }
 }

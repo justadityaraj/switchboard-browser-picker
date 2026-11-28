@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let router = Router()
     private var statusItem: NSStatusItem?
     private var settingsWindow: NSWindow?
+    private var activation: (at: TimeInterval, previousApp: NSRunningApplication?, windowAboveSettings: Int?)?
     private var settingsModel: SettingsModel?
     private let launchAtLoginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
 
@@ -42,13 +43,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    func applicationWillBecomeActive(_ notification: Notification) {
+        let windows = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] ?? []
+        let normal = windows.filter { $0[kCGWindowLayer as String] as? Int == 0 }.compactMap { $0[kCGWindowNumber as String] as? Int }
+        let index = settingsWindow.flatMap { $0.isVisible ? normal.firstIndex(of: $0.windowNumber) : nil }
+        let previousApp = NSWorkspace.shared.menuBarOwningApplication.flatMap { $0 == .current ? nil : $0 }
+        activation = (ProcessInfo.processInfo.systemUptime, previousApp, index.flatMap { $0 > 0 ? normal[$0 - 1] : nil })
+    }
+
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         showSettings()
         return true
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
-        urls.forEach { router.route($0, sourceApp: nil) }
+        let returnFocusTo = takeLinkActivation()
+        urls.forEach { router.route($0, sourceApp: nil, returnFocusTo: returnFocusTo) }
     }
 
     @objc private func handleGetURL(_ event: NSAppleEventDescriptor, reply: NSAppleEventDescriptor) {
@@ -58,7 +68,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         else { return }
         let senderPID = event.attributeDescriptor(forKeyword: keySenderPIDAttr)?.int32Value
         let sourceApp = senderPID.flatMap { NSRunningApplication(processIdentifier: $0)?.bundleIdentifier }
-        router.route(url, sourceApp: sourceApp == Bundle.main.bundleIdentifier ? nil : sourceApp)
+        router.route(url, sourceApp: sourceApp == Bundle.main.bundleIdentifier ? nil : sourceApp, returnFocusTo: takeLinkActivation())
+    }
+
+    private func takeLinkActivation() -> NSRunningApplication? {
+        defer { activation = nil }
+        // ponytail: any activation in the last second counts as caused by this link, since no API ties the two; a background link right after clicking Settings would misfire
+        guard let activation, ProcessInfo.processInfo.systemUptime - activation.at < 1 else { return nil }
+        if let windowAbove = activation.windowAboveSettings {
+            settingsWindow?.order(.below, relativeTo: windowAbove)
+        }
+        return activation.previousApp
     }
 
     private func installStatusItem() {
@@ -82,7 +102,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func showSettings() {
         if settingsWindow == nil {
             let model = SettingsModel()
-            let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model)))
+            let window = SettingsWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model)))
             window.title = "Switchboard Settings"
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             window.isReleasedWhenClosed = false
@@ -108,4 +128,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             NSAlert(error: error).runModal()
         }
     }
+}
+
+final class SettingsWindow: NSWindow {
+    static var refusesKey = false
+    override var canBecomeKey: Bool { !Self.refusesKey && super.canBecomeKey }
+    override var canBecomeMain: Bool { !Self.refusesKey && super.canBecomeMain }
 }
